@@ -1,0 +1,105 @@
+{% extends "base.html" %} {% block content %}
+
+<h2 class="mb-4">Admin Dashboard</h2>
+
+<p><strong>Total Faults:</strong> {{ faults | length }}</p>
+<p>
+  <strong>Current Time:</strong> {{ current_time.strftime('%Y-%m-%d %H:%M:%S')
+  }} UTC+1
+</p>
+
+{% if current_user.role == 'admin' %}
+<a href="{{ url_for('main.log_fault') }}" class="btn btn-success mb-4"
+  >+ Log New Fault</a
+>
+
+<!-- Fault Summary Cards -->
+<div class="row mb-4">
+  <div class="col-md-4">
+    <div class="card border-danger">
+      <div class="card-body text-danger">
+        <h5 class="card-title">Pending Escalations</h5>
+        <span class="badge bg-danger fs-5">{{ pending_open }}</span>
+        <p class="mt-2 mb-0">
+          Total Pending Time: <strong>{{ total_pending_time }} hrs</strong>
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card border-warning">
+      <div class="card-body text-warning">
+        <h5 class="card-title">In Progress</h5>
+        <span class="badge bg-warning text-dark fs-5"
+          >{{ pending_progress }}</span
+        >
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card border-success">
+      <div class="card-body text-success">
+        <h5 class="card-title">Resolved Faults</h5>
+        <span class="badge bg-success fs-5">{{ resolved_count }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %} {% if faults %} {% if dept_stats %}
+<h4 class="mt-5">Pending Faults by Department</h4>
+<table class="table table-bordered">
+  <thead class="table-light">
+    <tr>
+      <th>Department</th>
+      <th>Open/Unresolved Faults</th>
+      <th>Total Pending Time (hrs)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for stat in dept_stats %}
+    <tr>
+      <td>{{ stat.name }}</td>
+      <td>{{ stat.count }}</td>
+      <td>{{ stat.hours }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h4 class="mt-4">All Faults</h4>
+<table class="table table-bordered table-striped">
+  <thead class="table-dark">
+    <tr>
+      <th>ID</th>
+      <th>Type</th>
+      <th>Location</th>
+      <th>Severity</th>
+      <th>Status</th>
+      <th>Pending Time</th>
+      <th>Assigned To</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for fault in faults %}
+    <tr>
+      <td>{{ fault.id }}</td>
+      <td>{{ fault.type }}</td>
+      <td>{{ fault.location }}</td>
+      <td>{{ fault.severity }}</td>
+      <td>{{ fault.status }}</td>
+      <td>
+        {% if fault.status != 'Resolved' %} {{ ((current_time -
+        fault.created_at).total_seconds() // 3600) | int }} hours {% else %}
+        Resolved {% endif %}
+      </td>
+      <td>
+        {{ fault.assigned_to.name if fault.assigned_to else 'Unassigned' }}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No faults found.</p>
+{% endif %} {% endblock %}

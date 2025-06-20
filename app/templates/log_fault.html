@@ -1,0 +1,51 @@
+{% extends "base.html" %} {% block content %}
+<div class="container mt-4">
+  <h2 class="mb-4">Log New Fault</h2>
+
+  {% with messages = get_flashed_messages(with_categories=true) %} {% if
+  messages %} {% for category, message in messages %}
+  <div class="alert alert-{{ category }}">{{ message }}</div>
+  {% endfor %} {% endif %} {% endwith %}
+
+  <form method="POST">
+    <div class="mb-3">
+      <label for="type" class="form-label">Fault Type</label>
+      <input type="text" name="type" class="form-control" required />
+    </div>
+
+    <div class="mb-3">
+      <label for="description" class="form-label">Description</label>
+      <textarea name="description" class="form-control" required></textarea>
+    </div>
+
+    <div class="mb-3">
+      <label for="location" class="form-label">Location</label>
+      <input type="text" name="location" class="form-control" required />
+    </div>
+
+    <div class="mb-3">
+      <label for="severity" class="form-label">Severity</label>
+      <select name="severity" class="form-select" required>
+        <option value="Low">Low</option>
+        <option value="Moderate">Moderate</option>
+        <option value="High">High</option>
+        <option value="Critical">Critical</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="department_id" class="form-label"
+        >Assign to Department (Optional)</label
+      >
+      <select name="department_id" class="form-select">
+        <option value="">-- Unassigned --</option>
+        {% for dept in departments %}
+        <option value="{{ dept.id }}">{{ dept.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Log Fault</button>
+  </form>
+</div>
+{% endblock %}

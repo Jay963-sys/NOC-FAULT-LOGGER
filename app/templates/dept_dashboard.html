@@ -1,0 +1,70 @@
+{% extends "base.html" %} {% block content %}
+<h2 class="mb-4">{{ current_user.department.name }} Dashboard</h2>
+
+{% if faults %}
+<table class="table table-bordered table-striped">
+  <thead class="table-dark">
+    <tr>
+      <th>ID</th>
+      <th>Type</th>
+      <th>Location</th>
+      <th>Severity</th>
+      <th>Status</th>
+      <th>Pending Time</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for fault in faults %}
+    <tr>
+      <td>{{ fault.id }}</td>
+      <td>{{ fault.type }}</td>
+      <td>{{ fault.location }}</td>
+      <td>{{ fault.severity }}</td>
+      <td>
+        {% if fault.status == 'Resolved' %}
+        <span class="badge bg-success">{{ fault.status }}</span>
+        {% elif fault.status == 'Pending' %}
+        <span class="badge bg-warning text-dark">{{ fault.status }}</span>
+        {% else %}
+        <span class="badge bg-secondary">{{ fault.status }}</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if fault.status != 'Resolved' %} {{ ((current_time -
+        fault.created_at).total_seconds() // 3600) | int }} hrs {% else %}
+        Resolved {% endif %}
+      </td>
+      <td>
+        {% if fault.status != 'Resolved' %}
+        <form
+          method="POST"
+          action="{{ url_for('main.update_fault', fault_id=fault.id) }}"
+          class="d-flex gap-2"
+        >
+          <select name="status" class="form-select form-select-sm" required>
+            <option disabled selected>Change status</option>
+            <option value="Pending">Pending</option>
+            <option value="Resolved">Resolved</option>
+          </select>
+          <input
+            type="text"
+            name="notes"
+            placeholder="Add notes"
+            class="form-control form-control-sm"
+          />
+          <button type="submit" class="btn btn-sm btn-primary">Update</button>
+        </form>
+        {% else %}
+        <em>No action</em>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="alert alert-info text-center">
+  No faults have been assigned to your department yet.
+</div>
+{% endif %} {% endblock %}
