@@ -2,7 +2,7 @@
 
 <h2 class="mb-4">Admin Dashboard</h2>
 
-<p><strong>Total Faults:</strong> {{ faults | length }}</p>
+<p><strong>Total Faults:</strong> {{ faults|length }}</p>
 <p>
   <strong>Current Time:</strong> {{ current_time.strftime('%Y-%m-%d %H:%M:%S')
   }} UTC+1
@@ -45,8 +45,34 @@
     </div>
   </div>
 </div>
-{% endif %} {% if faults %} {% if dept_stats %}
+
+{% if dept_stats %}
 <h4 class="mt-5">Pending Faults by Department</h4>
+<form method="GET" class="row g-2 mb-3">
+  <div class="col-md-3">
+    <input type="text" name="query" class="form-control" placeholder="Search by type, location..." value="{{ request.args.get('query', '') }}">
+  </div>
+  <div class="col-md-2">
+    <select name="status" class="form-select">
+      <option value="">All Statuses</option>
+      <option value="Open" {% if request.args.get('status') == 'Open' %}selected{% endif %}>Open</option>
+      <option value="In Progress" {% if request.args.get('status') == 'In Progress' %}selected{% endif %}>In Progress</option>
+      <option value="Resolved" {% if request.args.get('status') == 'Resolved' %}selected{% endif %}>Resolved</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <select name="severity" class="form-select">
+      <option value="">All Severities</option>
+      <option value="Low" {% if request.args.get('severity') == 'Low' %}selected{% endif %}>Low</option>
+      <option value="Medium" {% if request.args.get('severity') == 'Medium' %}selected{% endif %}>Medium</option>
+      <option value="High" {% if request.args.get('severity') == 'High' %}selected{% endif %}>High</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <button type="submit" class="btn btn-primary w-100">Filter</button>
+  </div>
+</form>
+
 <table class="table table-bordered">
   <thead class="table-light">
     <tr>
@@ -65,9 +91,7 @@
     {% endfor %}
   </tbody>
 </table>
-{% endif %}
-
-<h4 class="mt-4">All Faults</h4>
+{% endif %} {% endif %} {% if faults %}
 <table class="table table-bordered table-striped">
   <thead class="table-dark">
     <tr>
@@ -82,7 +106,10 @@
   </thead>
   <tbody>
     {% for fault in faults %}
-    <tr>
+    <tr
+      class="clickable-row"
+      data-href="{{ url_for('main.view_fault', fault_id=fault.id) }}"
+    >
       <td>{{ fault.id }}</td>
       <td>{{ fault.type }}</td>
       <td>{{ fault.location }}</td>
@@ -100,6 +127,7 @@
     {% endfor %}
   </tbody>
 </table>
+
 {% else %}
 <p>No faults found.</p>
 {% endif %} {% endblock %}

@@ -47,23 +47,39 @@ def dashboard():
     current_time = datetime.utcnow() + timedelta(hours=1)  # UTC+1
 
     if current_user.role == 'admin':
-        faults = Fault.query.all()
+        faults_query = Fault.query
 
-        # Summary counts
-        pending_open = sum(1 for f in faults if f.status == 'Open')
-        pending_progress = sum(1 for f in faults if f.status == 'In Progress')
-        resolved_count = sum(1 for f in faults if f.status == 'Resolved')
+        # Filters from form
+        status = request.args.get('status')
+        severity = request.args.get('severity')
+        query = request.args.get('query')
 
+        if status:
+            faults_query = faults_query.filter_by(status=status)
+        if severity:
+            faults_query = faults_query.filter_by(severity=severity)
+        if query:
+            search = f"%{query}%"
+            faults_query = faults_query.filter(
+                Fault.type.ilike(search) | Fault.location.ilike(search)
+            )
+
+        faults = faults_query.all()
+
+        # Counts from unfiltered list for stats
+        all_faults = Fault.query.all()
+        pending_open = sum(1 for f in all_faults if f.status == 'Open')
+        pending_progress = sum(1 for f in all_faults if f.status == 'In Progress')
+        resolved_count = sum(1 for f in all_faults if f.status == 'Resolved')
         total_pending_time = sum(
             ((current_time - f.created_at).total_seconds() / 3600)
-            for f in faults if f.status != 'Resolved'
+            for f in all_faults if f.status != 'Resolved'
         )
 
-        # Breakdown by department
         departments = Department.query.all()
         dept_stats = []
         for dept in departments:
-            dept_faults = [f for f in faults if f.assigned_to_id == dept.id and f.status != 'Resolved']
+            dept_faults = [f for f in all_faults if f.assigned_to_id == dept.id and f.status != 'Resolved']
             fault_count = len(dept_faults)
             total_hours = sum(
                 ((current_time - f.created_at).total_seconds() / 3600)
@@ -86,6 +102,7 @@ def dashboard():
             total_pending_time=int(total_pending_time),
             dept_stats=dept_stats
         )
+
     else:
         faults = Fault.query.filter_by(assigned_to_id=current_user.department_id).all()
         return render_template('dept_dashboard.html', faults=faults, current_time=current_time)
@@ -169,3 +186,9 @@ def index():
 def history():
     faults = Fault.query.order_by(Fault.created_at.desc()).all()
     return render_template('history.html', faults=faults)
+
+@bp.route('/fault/<int:fault_id>')
+@login_required
+def view_fault(fault_id):
+    fault = Fault.query.get_or_404(fault_id)
+    return render_template('fault_detail.html', fault=fault)
