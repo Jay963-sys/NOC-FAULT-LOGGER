@@ -10,41 +10,38 @@
   <form method="POST">
     <div class="mb-3">
       <label for="type" class="form-label">Fault Type</label>
-      <input type="text" name="type" class="form-control" required />
+      <input type="text" class="form-control" name="type" required />
     </div>
-
     <div class="mb-3">
       <label for="description" class="form-label">Description</label>
-      <textarea name="description" class="form-control" required></textarea>
+      <textarea class="form-control" name="description" required></textarea>
     </div>
-
     <div class="mb-3">
       <label for="location" class="form-label">Location</label>
-      <input type="text" name="location" class="form-control" required />
+      <input type="text" class="form-control" name="location" required />
     </div>
-
     <div class="mb-3">
-      <label for="severity" class="form-label">Severity</label>
-      <select name="severity" class="form-select" required>
-        <option value="Low">Low</option>
-        <option value="Moderate">Moderate</option>
-        <option value="High">High</option>
-        <option value="Critical">Critical</option>
+      <label for="customer_id" class="form-label">Customer</label>
+      <select name="customer_id" class="form-select" required>
+        <option value="">-- Select Customer --</option>
+        {% for c in customers %}
+        <option value="{{ c.id }}">
+          {{ c.company }} - {{ c.circuit_id or 'N/A' }}
+        </option>
+        {% endfor %}
       </select>
     </div>
-
     <div class="mb-3">
-      <label for="department_id" class="form-label"
-        >Assign to Department (Optional)</label
+      <label for="assigned_to_id" class="form-label"
+        >Assign to Department</label
       >
-      <select name="department_id" class="form-select">
-        <option value="">-- Unassigned --</option>
+      <select class="form-select" name="assigned_to_id">
+        <option value="">-- Select Department --</option>
         {% for dept in departments %}
         <option value="{{ dept.id }}">{{ dept.name }}</option>
         {% endfor %}
       </select>
     </div>
-
     <button type="submit" class="btn btn-primary">Log Fault</button>
   </form>
 </div>

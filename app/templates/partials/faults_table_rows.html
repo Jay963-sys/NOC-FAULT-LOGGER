@@ -1,0 +1,18 @@
+{% for fault in faults %}
+<tr class="fault-row" data-fault-id="{{ fault.id }}">
+  <td>{{ fault.ticket_number }}</td>
+  <td>{{ fault.customer.company if fault.customer else 'N/A' }}</td>
+  <td>{{ fault.description }}</td>
+  <td>
+    <select class="form-control status-select" data-fault-id="{{ fault.id }}">
+      <option value="Open" {% if fault.status == 'Open' %}selected{% endif %}>Open</option>
+      <option value="In Progress" {% if fault.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+      <option value="Resolved" {% if fault.status == 'Resolved' %}selected{% endif %}>Resolved</option>
+      <option value="Closed" {% if fault.status == 'Closed' %}selected{% endif %}>Closed</option>
+    </select>
+  </td>
+  <td><span class="badge {{ fault.dynamic_severity|lower }}">{{ fault.dynamic_severity }}</span></td>
+  <td>{{ fault.local_created_at }}</td>
+  <td>{{ "%.1f"|format(fault.age_hours) }}</td>
+</tr>
+{% endfor %}

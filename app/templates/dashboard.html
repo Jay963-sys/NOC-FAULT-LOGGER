@@ -1,133 +1,199 @@
-{% extends "base.html" %} {% block content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NOC Fault Logger - Admin Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header>
+    <h1>NOC Fault Logger - Admin Dashboard</h1>
+  </header>
 
-<h2 class="mb-4">Admin Dashboard</h2>
-
-<p><strong>Total Faults:</strong> {{ faults|length }}</p>
-<p>
-  <strong>Current Time:</strong> {{ current_time.strftime('%Y-%m-%d %H:%M:%S')
-  }} UTC+1
-</p>
-
-{% if current_user.role == 'admin' %}
-<a href="{{ url_for('main.log_fault') }}" class="btn btn-success mb-4"
-  >+ Log New Fault</a
->
-
-<!-- Fault Summary Cards -->
-<div class="row mb-4">
-  <div class="col-md-4">
-    <div class="card border-danger">
-      <div class="card-body text-danger">
-        <h5 class="card-title">Pending Escalations</h5>
-        <span class="badge bg-danger fs-5">{{ pending_open }}</span>
-        <p class="mt-2 mb-0">
-          Total Pending Time: <strong>{{ total_pending_time }} hrs</strong>
-        </p>
-      </div>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Admin Dashboard</h2>
+    <div>
+      <a href="{{ url_for('main.log_fault') }}" class="btn btn-primary">Log New Fault</a>
+      <a href="{{ url_for('main.customers') }}" class="btn btn-secondary">Manage Customers</a>
+      <a href="{{ url_for('main.departments') }}" class="btn btn-secondary">Manage Departments</a>
     </div>
   </div>
-  <div class="col-md-4">
-    <div class="card border-warning">
-      <div class="card-body text-warning">
-        <h5 class="card-title">In Progress</h5>
-        <span class="badge bg-warning text-dark fs-5"
-          >{{ pending_progress }}</span
-        >
-      </div>
-    </div>
+
+  <div class="row mb-3">
+  <div class="col-md-4 d-flex">
+    <input type="text" id="searchInput" class="form-control me-2" placeholder="Search by Customer ID or Name" />
+    <button id="searchBtn" class="btn btn-primary">Search</button>
   </div>
-  <div class="col-md-4">
-    <div class="card border-success">
-      <div class="card-body text-success">
-        <h5 class="card-title">Resolved Faults</h5>
-        <span class="badge bg-success fs-5">{{ resolved_count }}</span>
-      </div>
-    </div>
+  <div class="col-md-2">
+    <select id="monthFilter" class="form-select">
+      <option value="">All Months</option>
+      <option value="1">January</option>
+      <option value="2">February</option>
+      <option value="3">March</option>
+      <option value="4">April</option>
+      <option value="5">May</option>
+      <option value="6">June</option>
+      <option value="7">July</option>
+      <option value="8">August</option>
+      <option value="9">September</option>
+      <option value="10">October</option>
+      <option value="11">November</option>
+      <option value="12">December</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <select id="yearFilter" class="form-select">
+      <option value="">All Years</option>
+      {% for y in range(2023, 2031) %}
+      <option value="{{ y }}">{{ y }}</option>
+      {% endfor %}
+    </select>
   </div>
 </div>
 
-{% if dept_stats %}
-<h4 class="mt-5">Pending Faults by Department</h4>
-<form method="GET" class="row g-2 mb-3">
-  <div class="col-md-3">
-    <input type="text" name="query" class="form-control" placeholder="Search by type, location..." value="{{ request.args.get('query', '') }}">
-  </div>
   <div class="col-md-2">
-    <select name="status" class="form-select">
-      <option value="">All Statuses</option>
-      <option value="Open" {% if request.args.get('status') == 'Open' %}selected{% endif %}>Open</option>
-      <option value="In Progress" {% if request.args.get('status') == 'In Progress' %}selected{% endif %}>In Progress</option>
-      <option value="Resolved" {% if request.args.get('status') == 'Resolved' %}selected{% endif %}>Resolved</option>
+    <select id="yearFilter" class="form-select">
+      <option value="">All Years</option>
+      {% for y in range(2023, 2031) %}
+      <option value="{{ y }}">{{ y }}</option>
+      {% endfor %}
     </select>
   </div>
   <div class="col-md-2">
-    <select name="severity" class="form-select">
-      <option value="">All Severities</option>
-      <option value="Low" {% if request.args.get('severity') == 'Low' %}selected{% endif %}>Low</option>
-      <option value="Medium" {% if request.args.get('severity') == 'Medium' %}selected{% endif %}>Medium</option>
-      <option value="High" {% if request.args.get('severity') == 'High' %}selected{% endif %}>High</option>
-    </select>
+    <button id="applyFilters" class="btn btn-primary w-100">Apply</button>
   </div>
-  <div class="col-md-2">
-    <button type="submit" class="btn btn-primary w-100">Filter</button>
+</div>
+
+
+  <div class="tabs">
+    <button class="tab active" data-filter="all">All Faults</button>
+    <button class="tab" data-filter="Open">Open</button>
+    <button class="tab" data-filter="In Progress">In Progress</button>
+    <button class="tab" data-filter="Resolved">Resolved</button>
+    <button class="tab" data-filter="Closed">Closed</button>
   </div>
-</form>
 
-<table class="table table-bordered">
-  <thead class="table-light">
-    <tr>
-      <th>Department</th>
-      <th>Open/Unresolved Faults</th>
-      <th>Total Pending Time (hrs)</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for stat in dept_stats %}
-    <tr>
-      <td>{{ stat.name }}</td>
-      <td>{{ stat.count }}</td>
-      <td>{{ stat.hours }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% endif %} {% endif %} {% if faults %}
-<table class="table table-bordered table-striped">
-  <thead class="table-dark">
-    <tr>
-      <th>ID</th>
-      <th>Type</th>
-      <th>Location</th>
-      <th>Severity</th>
-      <th>Status</th>
-      <th>Pending Time</th>
-      <th>Assigned To</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for fault in faults %}
-    <tr
-      class="clickable-row"
-      data-href="{{ url_for('main.view_fault', fault_id=fault.id) }}"
-    >
-      <td>{{ fault.id }}</td>
-      <td>{{ fault.type }}</td>
-      <td>{{ fault.location }}</td>
-      <td>{{ fault.severity }}</td>
-      <td>{{ fault.status }}</td>
-      <td>
-        {% if fault.status != 'Resolved' %} {{ ((current_time -
-        fault.created_at).total_seconds() // 3600) | int }} hours {% else %}
-        Resolved {% endif %}
-      </td>
-      <td>
-        {{ fault.assigned_to.name if fault.assigned_to else 'Unassigned' }}
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+  <div class="table-container">
+    <table id="faultsTable">
+      <thead>
+        <tr>
+          <th>Ticket Number</th>
+          <th>Company</th>
+          <th>Circuit ID</th>
+          <th>Issue</th>
+          <th>Status</th>
+          <th>Severity</th>
+          <th>Logged Time</th>
+          <th>Pending (hrs)</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="faultsTableBody">
+        {% for fault in faults %}
+        <tr class="fault-row" data-fault-id="{{ fault.id }}">
+          <td>{{ fault.ticket_number }}</td>
+          <td>{{ fault.customer.company if fault.customer else 'N/A' }}</td>
+          <td>{{ fault.description }}</td>
+          <td>
+            <select class="form-control status-select" data-fault-id="{{ fault.id }}">
+              <option value="Open" {% if fault.status == 'Open' %}selected{% endif %}>Open</option>
+              <option value="In Progress" {% if fault.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+              <option value="Resolved" {% if fault.status == 'Resolved' %}selected{% endif %}>Resolved</option>
+              <option value="Closed" {% if fault.status == 'Closed' %}selected{% endif %}>Closed</option>
+            </select>
+          </td>
+          <td><span class="badge {{ fault.dynamic_severity|lower }}">{{ fault.dynamic_severity }}</span></td>
+          <td>{{ fault.local_created_at }}</td>
+          <td>
+            {% if fault.status == 'Open' or fault.status == 'In Progress' %}
+              {{ "%.1f"|format(fault.age_hours) }}
+            {% else %}
+              N/A
+            {% endif %}
+          </td>
+          <td>
+            <button class="btn btn-sm btn-danger delete-btn" data-fault-id="{{ fault.id }}">Delete</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
-{% else %}
-<p>No faults found.</p>
-{% endif %} {% endblock %}
+  <div id="drawer" class="drawer">
+    <div class="drawer-header">
+      <h2>Customer Details & History</h2>
+      <button id="closeDrawer">&times;</button>
+    </div>
+    <div class="drawer-content">
+      <div class="drawer-tabs">
+        <button class="drawer-tab active" data-tab="details">Customer Details</button>
+        <button class="drawer-tab" data-tab="history">Fault History</button>
+      </div>
+      <div id="detailsTab" class="tab-content active">
+        <p><strong>Company:</strong> <span id="customerCompany"></span></p>
+        <p><strong>IP Address:</strong> <span id="customerIP"></span></p>
+        <p><strong>POP Site:</strong> <span id="customerPOP"></span></p>
+        <p><strong>Circuit ID:</strong> <span id="customerCircuit"></span></p>
+        <p><strong>Email:</strong> <span id="customerEmail"></span></p>
+        <p><strong>Switch Info:</strong> <span id="customerSwitch"></span></p>
+      </div>
+      <div id="historyTab" class="tab-content">
+        <table>
+          <thead>
+            <tr>
+              <th>Fault ID</th>
+              <th>Issue</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="faultHistoryBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Fault Modal -->
+<div id="editModal" class="modal">
+  <div class="modal-content">
+    <span id="closeEditModal" class="close">&times;</span>
+    <h2>Edit Fault</h2>
+    <form id="editFaultForm">
+      <input type="hidden" id="editFaultId">
+      <label>Type:</label>
+      <input type="text" id="editType" required>
+      <label>Description:</label>
+      <textarea id="editDescription" required></textarea>
+      <label>Location:</label>
+      <input type="text" id="editLocation" required>
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </form>
+  </div>
+</div>
+
+
+  <div class="chart-container">
+    <canvas id="deptChart"></canvas>
+  </div>
+  <div class="chart-container">
+    <canvas id="dateChart"></canvas>
+  </div>
+  <div class="chart-container">
+    <canvas id="severityChart"></canvas>
+  </div>
+
+  <script>
+    window.chartData = {
+      deptLabels: {{ chart_data["dept_labels"] | tojson | safe }},
+      deptValues: {{ chart_data["dept_values"] | tojson | safe }},
+      dateLabels: {{ chart_data["date_labels"] | tojson | safe }},
+      dateValues: {{ chart_data["date_values"] | tojson | safe }},
+      severityLabels: {{ severity_chart_data["labels"] | tojson | safe }},
+      severityValues: {{ severity_chart_data["values"] | tojson | safe }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,207 @@
+{% extends "base.html" %} {% block content %}
+<h2>Customer Management</h2>
+
+<form method="GET" action="{{ url_for('main.customers') }}" class="mb-3">
+  <div class="input-group">
+    <input
+      type="text"
+      name="search"
+      placeholder="Search by company, Circuit ID, IP, or POP site"
+      value="{{ search_query }}"
+      class="form-control"
+    />
+    <button type="submit" class="btn btn-primary">Search</button>
+  </div>
+</form>
+
+<h4>Add New Customer</h4>
+<form method="POST" action="{{ url_for('main.add_customer') }}" class="mb-4">
+  <div class="row g-2">
+    <div class="col">
+      <input
+        type="text"
+        name="company"
+        placeholder="Company Name"
+        class="form-control"
+        required
+      />
+    </div>
+    <div class="col">
+      <input
+        type="text"
+        name="ip_address"
+        placeholder="IP Address"
+        class="form-control"
+      />
+    </div>
+    <div class="col">
+      <input
+        type="text"
+        name="pop_site"
+        placeholder="POP Site"
+        class="form-control"
+      />
+    </div>
+    <div class="col">
+      <input
+        type="text"
+        name="circuit_id"
+        placeholder="Circuit ID"
+        class="form-control"
+      />
+    </div>
+    <div class="col">
+      <input
+        type="text"
+        name="email"
+        placeholder="Email"
+        class="form-control"
+      />
+    </div>
+    <div class="col">
+      <input
+        type="text"
+        name="switch_info"
+        placeholder="Switch Info"
+        class="form-control"
+      />
+    </div>
+    <div class="col">
+      <button type="submit" class="btn btn-success">Add</button>
+    </div>
+  </div>
+</form>
+
+<h4>Existing Customers</h4>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Company</th>
+      <th>IP Address</th>
+      <th>POP Site</th>
+      <th>Circuit ID</th>
+      <th>Email</th>
+      <th>Switch Info</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in customers %}
+    <tr data-customer-id="{{ c.id }}">
+      <td>
+        <input
+          type="text"
+          class="form-control customer-company"
+          value="{{ c.company }}"
+        />
+      </td>
+      <td>
+        <input
+          type="text"
+          class="form-control customer-ip"
+          value="{{ c.ip_address }}"
+        />
+      </td>
+      <td>
+        <input
+          type="text"
+          class="form-control customer-pop"
+          value="{{ c.pop_site }}"
+        />
+      </td>
+      <td>
+        <input
+          type="text"
+          class="form-control customer-circuit"
+          value="{{ c.circuit_id }}"
+        />
+      </td>
+      <td>
+        <input
+          type="text"
+          class="form-control customer-email"
+          value="{{ c.email }}"
+        />
+      </td>
+      <td>
+        <input
+          type="text"
+          class="form-control customer-switch"
+          value="{{ c.switch_info }}"
+        />
+      </td>
+      <td class="d-flex gap-1">
+        <button type="button" class="btn btn-sm btn-success edit-customer">
+          Edit
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-danger delete-btn"
+          data-id="{{ c.id }}"
+        >
+          Delete
+        </button>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+  // Edit Existing Customer
+  document.addEventListener("click", function (e) {
+    if (e.target && e.target.classList.contains("edit-customer")) {
+      const row = e.target.closest("tr");
+      const customerId = row.dataset.customerId;
+
+      const updatedData = {
+        company: row.querySelector(".customer-company").value,
+        ip_address: row.querySelector(".customer-ip").value,
+        pop_site: row.querySelector(".customer-pop").value,
+        circuit_id: row.querySelector(".customer-circuit").value,
+        email: row.querySelector(".customer-email").value,
+        switch_info: row.querySelector(".customer-switch").value,
+      };
+
+      fetch(`/edit_customer/${customerId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedData),
+      })
+        .then((res) =>
+          res.ok
+            ? showToast("Customer updated successfully", "success")
+            : showToast("Failed to update", "danger")
+        )
+        .catch(() => showToast("Error occurred", "danger"));
+    }
+
+    // Delete Customer
+    if (e.target && e.target.classList.contains("delete-btn")) {
+      if (!confirm("Delete this customer?")) return;
+      const row = e.target.closest("tr");
+      const customerId = e.target.dataset.id;
+
+      fetch(`/delete_customer/${customerId}`, { method: "POST" })
+        .then((res) => {
+          if (res.ok) {
+            row.remove();
+            showToast("Customer deleted", "success");
+          } else {
+            showToast("Failed to delete", "danger");
+          }
+        })
+        .catch(() => showToast("Error occurred", "danger"));
+    }
+  });
+
+  function showToast(message, type) {
+    const toast = document.createElement("div");
+    toast.className = `toast alert alert-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
+</script>
+
+{% endblock %}

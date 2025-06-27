@@ -1,0 +1,72 @@
+{% extends "base.html" %} {% block content %}
+<div class="container mt-4">
+  <h2>Manage Departments</h2>
+
+  <div class="mb-3">
+    <input
+      type="text"
+      id="deptName"
+      class="form-control"
+      placeholder="Department Name"
+    />
+    <button id="addDeptBtn" class="btn btn-primary mt-2">Add Department</button>
+  </div>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for dept in departments %}
+      <tr>
+        <td>{{ dept.name }}</td>
+        <td>
+          <button
+            class="btn btn-danger btn-sm delete-btn"
+            data-id="{{ dept.id }}"
+          >
+            Delete
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+  document.getElementById("addDeptBtn").addEventListener("click", () => {
+    const name = document.getElementById("deptName").value;
+    if (!name) return alert("Enter department name");
+
+    fetch("/add_department", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `name=${encodeURIComponent(name)}`,
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.error) return alert(data.error);
+        location.reload();
+      });
+  });
+
+  document.querySelectorAll(".delete-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!confirm("Delete this department?")) return;
+
+      fetch(`/delete_department/${btn.dataset.id}`, {
+        method: "POST",
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.error) return alert(data.error);
+          location.reload();
+        });
+    });
+  });
+</script>
+{% endblock %}
