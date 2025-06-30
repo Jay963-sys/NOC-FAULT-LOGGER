@@ -1,75 +1,48 @@
 document.addEventListener("DOMContentLoaded", function () {
-  let currentFilter = "all";
-  let currentSearch = "";
-  let currentMonth = "";
-  let currentYear = "";
+  setupEventListeners();
+  initCharts();
+  setInterval(loadTable, 180000); // Refresh every 3 minutes
+  loadTable();
+});
 
-  // Fault Row Click - Open Drawer
-  document.addEventListener("click", function (e) {
-    const row = e.target.closest(".fault-row");
-    if (
-      row &&
-      !e.target.classList.contains("status-select") &&
-      !e.target.closest(".action-btn")
-    ) {
-      openDrawerWithDetails(row.dataset.faultId);
-    }
-  });
+function setupEventListeners() {
+  document.addEventListener("click", handleClicks);
+  document.addEventListener("change", handleChange);
 
-  // Status Dropdown Change (AJAX Update)
-  document.addEventListener("change", function (e) {
-    if (e.target && e.target.classList.contains("status-select")) {
-      const faultId = e.target.dataset.faultId;
-      const newStatus = e.target.value;
-      fetch(`/update_fault_status/${faultId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          showToast(data.message);
-          loadTable();
-        });
-    }
-  });
-
-  // Filter Tabs (All, Open, Resolved)
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       document
         .querySelectorAll(".tab")
         .forEach((t) => t.classList.remove("active"));
       tab.classList.add("active");
-      currentFilter = tab.dataset.filter;
+      console.log("Tab clicked:", tab.dataset.filter); // Optional for debugging
       loadTable();
     });
   });
 
-  // Search Button Click
-  document.getElementById("searchBtn").addEventListener("click", () => {
-    currentSearch = document.getElementById("searchInput").value.trim();
+  const searchInput = document.getElementById("searchInput");
+
+  // Live search as you type
+  searchInput.addEventListener("input", () => {
     loadTable();
   });
 
-  // Month Filter Change
-  document.getElementById("monthFilter").addEventListener("change", (e) => {
-    currentMonth = e.target.value;
-    loadTable();
+  // Search on Enter key
+  searchInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      loadTable();
+    }
   });
 
-  // Year Filter Change
-  document.getElementById("yearFilter").addEventListener("change", (e) => {
-    currentYear = e.target.value;
-    loadTable();
-  });
+  document.getElementById("searchBtn").addEventListener("click", loadTable);
+  document.getElementById("monthFilter").addEventListener("change", loadTable);
+  document.getElementById("yearFilter").addEventListener("change", loadTable);
 
-  // Drawer Close
   document.getElementById("closeDrawer").addEventListener("click", () => {
     document.getElementById("drawer").classList.remove("open");
   });
 
-  // Drawer Tabs Switching
   document.querySelectorAll(".drawer-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       document
@@ -78,22 +51,105 @@ document.addEventListener("DOMContentLoaded", function () {
       tab.classList.add("active");
       document
         .querySelectorAll(".tab-content")
-        .forEach((content) => content.classList.remove("active"));
+        .forEach((c) => c.classList.remove("active"));
       document.getElementById(tab.dataset.tab + "Tab").classList.add("active");
     });
   });
 
-  // Charts
-  initCharts();
+  document.getElementById("closeEditModal").addEventListener("click", () => {
+    document.getElementById("editModal").classList.remove("open");
+  });
 
-  // Auto Table Refresh every 3 minutes
-  setInterval(() => loadTable(), 180000);
+  document
+    .getElementById("editFaultForm")
+    .addEventListener("submit", handleEditSubmit);
+}
 
-  // Initial Table Load
-  loadTable();
-});
+function handleClicks(e) {
+  const row = e.target.closest(".fault-row");
 
-// Load Table function with full filters
+  if (
+    row &&
+    !e.target.classList.contains("status-select") &&
+    !e.target.closest(".action-btn")
+  ) {
+    openDrawerWithDetails(row.dataset.faultId);
+  }
+
+  if (e.target.classList.contains("delete")) {
+    const faultId = e.target.dataset.faultId;
+    if (confirm("Are you sure you want to delete this fault?")) {
+      fetch(`/delete_fault/${faultId}`, { method: "POST" })
+        .then((res) => res.json())
+        .then((data) => {
+          showToast(data.message);
+          loadTable();
+        })
+        .catch(() => alert("Error deleting fault."));
+    }
+  }
+
+  if (e.target.classList.contains("edit")) {
+    const faultId = e.target.dataset.faultId;
+    fetch(`/get_fault_details/${faultId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        document.getElementById("editFaultId").value = faultId;
+        document.getElementById("editType").value = data.type || "";
+        document.getElementById("editDescription").value =
+          data.description || "";
+        document.getElementById("editLocation").value = data.location || "";
+        document.getElementById("editOwner").value = data.owner_of_ticket || "";
+        document.getElementById("editAssignedTo").value =
+          data.assigned_to_person || "";
+        document.getElementById("editModal").classList.add("open");
+      })
+      .catch(() => alert("Error loading fault details"));
+  }
+}
+
+function handleChange(e) {
+  if (e.target.classList.contains("status-select")) {
+    const faultId = e.target.dataset.faultId;
+    const newStatus = e.target.value;
+    fetch(`/update_fault_status/${faultId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        showToast(data.message);
+        loadTable();
+      });
+  }
+}
+
+function handleEditSubmit(e) {
+  e.preventDefault();
+  const faultId = document.getElementById("editFaultId").value;
+  const updatedData = {
+    type: document.getElementById("editType").value,
+    description: document.getElementById("editDescription").value,
+    location: document.getElementById("editLocation").value,
+    owner_of_ticket: document.getElementById("editOwner").value,
+    assigned_to_person: document.getElementById("editAssignedTo").value,
+  };
+
+  fetch(`/edit_fault/${faultId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updatedData),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      showToast(data.message);
+      document.getElementById("editModal").classList.remove("open");
+      loadTable();
+    })
+    .catch(() => alert("Error updating fault"));
+}
+
 function loadTable() {
   const params = new URLSearchParams({
     filter: getActiveFilter(),
@@ -105,9 +161,38 @@ function loadTable() {
   fetch(`/update_dashboard_table?${params.toString()}`)
     .then((res) => res.json())
     .then((data) => {
+      injectTableHeader();
       document.querySelector("#faultsTable tbody").innerHTML = data.table;
     })
     .catch((err) => console.error("Error loading table:", err));
+}
+
+function injectTableHeader() {
+  const filter = getActiveFilter();
+  let headerHTML = `
+    <tr>
+      <th>Ticket Number</th>
+      <th>Company</th>
+      <th>Circuit ID</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Location</th>
+      <th>Owner of Ticket</th>
+      <th>Assigned To (Staff)</th>
+      <th>Department</th>
+      <th>Status</th>
+  `;
+
+  if (filter === "Resolved") {
+    headerHTML += `<th>Logged At</th><th>Resolved At</th><th>Total Pending (hrs)</th><th>Actions</th>`;
+  } else if (filter === "Closed") {
+    headerHTML += `<th>Logged At</th><th>Closed At</th><th>Total Pending (hrs)</th><th>Actions</th>`;
+  } else {
+    headerHTML += `<th>Severity</th><th>Logged Time</th><th>Pending (hrs)</th><th>Actions</th>`;
+  }
+
+  headerHTML += `</tr>`;
+  document.getElementById("tableHeader").innerHTML = headerHTML;
 }
 
 function getActiveFilter() {
@@ -122,16 +207,14 @@ function openDrawerWithDetails(faultId) {
       return res.json();
     })
     .then((data) => {
-      const customer = data.customer;
-      document.getElementById("customerCompany").textContent = customer.company;
-      document.getElementById("customerIP").textContent = customer.ip_address;
-      document.getElementById("customerPOP").textContent = customer.pop_site;
-      document.getElementById("customerCircuit").textContent =
-        customer.circuit_id;
-      document.getElementById("customerEmail").textContent =
-        customer.email || "N/A";
+      const c = data.customer;
+      document.getElementById("customerCompany").textContent = c.company;
+      document.getElementById("customerIP").textContent = c.ip_address;
+      document.getElementById("customerPOP").textContent = c.pop_site;
+      document.getElementById("customerCircuit").textContent = c.circuit_id;
+      document.getElementById("customerEmail").textContent = c.email || "N/A";
       document.getElementById("customerSwitch").textContent =
-        customer.switch_info || "N/A";
+        c.switch_info || "N/A";
 
       const historyBody = document.getElementById("faultHistoryBody");
       historyBody.innerHTML =
@@ -146,7 +229,7 @@ function openDrawerWithDetails(faultId) {
               <td>${h.status}</td>
               <td>${h.logged_time}</td>
             </tr>
-          `
+        `
               )
               .join("");
 
@@ -208,66 +291,3 @@ function initCharts() {
     },
   });
 }
-
-// Handle Delete Button
-document.addEventListener("click", function (e) {
-  if (e.target.classList.contains("delete")) {
-    const faultId = e.target.dataset.faultId;
-    if (confirm("Are you sure you want to delete this fault?")) {
-      fetch(`/delete_fault/${faultId}`, { method: "POST" })
-        .then((res) => res.json())
-        .then((data) => {
-          showToast(data.message);
-          loadTable();
-        })
-        .catch(() => alert("Error deleting fault."));
-    }
-  }
-});
-
-// Open Edit Modal
-document.addEventListener("click", function (e) {
-  if (e.target.classList.contains("edit")) {
-    const faultId = e.target.dataset.faultId;
-    fetch(`/get_fault_details/${faultId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        document.getElementById("editFaultId").value = faultId;
-        document.getElementById("editType").value = data.type || "";
-        document.getElementById("editDescription").value =
-          data.description || "";
-        document.getElementById("editLocation").value = data.location || "";
-        document.getElementById("editModal").classList.add("open");
-      })
-      .catch(() => alert("Error loading fault details"));
-  }
-});
-
-document.getElementById("closeEditModal").addEventListener("click", () => {
-  document.getElementById("editModal").classList.remove("open");
-});
-
-document
-  .getElementById("editFaultForm")
-  .addEventListener("submit", function (e) {
-    e.preventDefault();
-    const faultId = document.getElementById("editFaultId").value;
-    const updatedData = {
-      type: document.getElementById("editType").value,
-      description: document.getElementById("editDescription").value,
-      location: document.getElementById("editLocation").value,
-    };
-
-    fetch(`/edit_fault/${faultId}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updatedData),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        showToast(data.message);
-        document.getElementById("editModal").classList.remove("open");
-        loadTable();
-      })
-      .catch(() => alert("Error updating fault"));
-  });

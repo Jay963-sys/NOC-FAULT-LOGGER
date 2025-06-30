@@ -51,19 +51,48 @@ class Fault(db.Model):
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     resolved_at = db.Column(db.DateTime, nullable=True)
+    closed_at = db.Column(db.DateTime, nullable=True)  # ✅ You were missing this!
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('department.id'))
     severity = db.Column(db.String(20), nullable=False)
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'))
+    owner_of_ticket = db.Column(db.String(100))
+    assigned_to_person = db.Column(db.String(100))
 
     customer = db.relationship("Customer", back_populates="faults")
 
     @property
     def age_hours(self):
-        now = datetime.now(ZoneInfo('Africa/Lagos'))
+        """Accurate pending hours, freezes when resolved or closed."""
+        tz = ZoneInfo('Africa/Lagos')
+
+        if self.closed_at:
+            end_time = self.closed_at
+        elif self.resolved_at:
+            end_time = self.resolved_at
+        else:
+            end_time = datetime.now(timezone.utc)
+
         created_at = self.created_at
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=timezone.utc)
-        return (now - created_at.astimezone(ZoneInfo('Africa/Lagos'))).total_seconds() / 3600
+
+        return (end_time.astimezone(tz) - created_at.astimezone(tz)).total_seconds() / 3600
+
+    @property
+    def total_pending_hours(self):
+        tz = ZoneInfo('Africa/Lagos')
+        if self.closed_at:
+            end_time = self.closed_at
+        elif self.resolved_at:
+            end_time = self.resolved_at
+        else:
+            end_time = datetime.now(timezone.utc)
+
+        created_at = self.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+
+        return (end_time.astimezone(tz) - created_at.astimezone(tz)).total_seconds() / 3600
 
     @property
     def dynamic_severity(self):
@@ -81,3 +110,23 @@ class Fault(db.Model):
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=timezone.utc)
         return created_at.astimezone(tz).strftime('%Y-%m-%d %H:%M')
+    
+    @property
+    def local_resolved_at(self):
+        if self.resolved_at:
+            tz = ZoneInfo('Africa/Lagos')
+            resolved_at = self.resolved_at
+            if resolved_at.tzinfo is None:
+                resolved_at = resolved_at.replace(tzinfo=timezone.utc)
+            return resolved_at.astimezone(tz).strftime('%Y-%m-%d %H:%M')
+        return 'N/A'
+
+    @property
+    def local_closed_at(self):
+        if self.closed_at:
+            tz = ZoneInfo('Africa/Lagos')
+            closed_at = self.closed_at
+            if closed_at.tzinfo is None:
+                closed_at = closed_at.replace(tzinfo=timezone.utc)
+            return closed_at.astimezone(tz).strftime('%Y-%m-%d %H:%M')
+        return 'N/A'

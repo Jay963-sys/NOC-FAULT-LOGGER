@@ -12,14 +12,17 @@
       <label for="type" class="form-label">Fault Type</label>
       <input type="text" class="form-control" name="type" required />
     </div>
+
     <div class="mb-3">
       <label for="description" class="form-label">Description</label>
       <textarea class="form-control" name="description" required></textarea>
     </div>
+
     <div class="mb-3">
       <label for="location" class="form-label">Location</label>
       <input type="text" class="form-control" name="location" required />
     </div>
+
     <div class="mb-3">
       <label for="customer_id" class="form-label">Customer</label>
       <select name="customer_id" class="form-select" required>
@@ -31,6 +34,7 @@
         {% endfor %}
       </select>
     </div>
+
     <div class="mb-3">
       <label for="assigned_to_id" class="form-label"
         >Assign to Department</label
@@ -42,6 +46,19 @@
         {% endfor %}
       </select>
     </div>
+
+    <div class="mb-3">
+      <label for="owner_of_ticket" class="form-label">Owner of Ticket</label>
+      <input type="text" class="form-control" name="owner_of_ticket" required />
+    </div>
+
+    <div class="mb-3">
+      <label for="assigned_to_person" class="form-label"
+        >Assigned To (Staff)</label
+      >
+      <input type="text" class="form-control" name="assigned_to_person" />
+    </div>
+
     <button type="submit" class="btn btn-primary">Log Fault</button>
   </form>
 </div>

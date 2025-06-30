@@ -14,8 +14,6 @@ import csv
 
 bp = Blueprint('main', __name__)
 
-def init_routes(app):
-    app.register_blueprint(bp)
 
 @bp.route('/')
 def index():
@@ -32,6 +30,13 @@ def log_fault():
         customer_id = request.form['customer_id']
         description = request.form['description']
         assigned_to_id = request.form.get('assigned_to_id')
+        fault_type = request.form['type']
+        location = request.form['location']
+        owner_of_ticket = request.form.get('owner_of_ticket')
+        assigned_to_person = request.form.get('assigned_to_person')
+
+        # Safely convert assigned_to_id to int if provided
+        assigned_to_id = int(assigned_to_id) if assigned_to_id else None
 
         lagos_tz = ZoneInfo('Africa/Lagos')
         today = datetime.now(lagos_tz).strftime('%Y%m%d')
@@ -45,18 +50,18 @@ def log_fault():
         lagos_time = datetime.now(ZoneInfo('Africa/Lagos'))
         created_at = lagos_time.astimezone(timezone.utc)
 
-        print(f"Lagos Time: {lagos_time}, UTC Time Stored: {created_at}")
-
-        
-
         fault = Fault(
             customer_id=customer_id,
             description=description,
+            type=fault_type,
+            location=location,
             status='Open',
             ticket_number=ticket_number,
-            assigned_to_id=assigned_to_id if assigned_to_id else None,
+            assigned_to_id=assigned_to_id,
             created_at=datetime.now(ZoneInfo('Africa/Lagos')).astimezone(timezone.utc),
-            severity='Low'
+            severity='Low',
+            owner_of_ticket=owner_of_ticket,
+            assigned_to_person=assigned_to_person
         )
         db.session.add(fault)
         db.session.commit()
@@ -79,17 +84,19 @@ def update_dashboard_table():
     month = request.args.get('month')
     year = request.args.get('year')
 
-    faults_query = Fault.query
+    faults_query = Fault.query.outerjoin(Customer)
 
-    # Filter by status
+    # Filter by status explicitly on Fault
     if filter_status != 'all':
-        faults_query = faults_query.filter_by(status=filter_status)
+        faults_query = faults_query.filter(Fault.status == filter_status)
 
-    # Search by Customer Name or Customer ID
+    # Search functionality
     if search_query:
-        faults_query = faults_query.join(Customer).filter(
+        faults_query = faults_query.filter(
             (Customer.company.ilike(f"%{search_query}%")) |
-            (Customer.id.cast(db.String).ilike(f"%{search_query}%"))
+            (Customer.circuit_id.ilike(f"%{search_query}%")) |
+            (Customer.id.cast(db.String).ilike(f"%{search_query}%")) |
+            (Fault.ticket_number.ilike(f"%{search_query}%"))
         )
 
     # Filter by Month
@@ -101,49 +108,105 @@ def update_dashboard_table():
         faults_query = faults_query.filter(db.extract('year', Fault.created_at) == int(year))
 
     faults = faults_query.all()
-
     table_rows = ""
+
     for fault in faults:
-        pending_hours = (
-            f"{fault.age_hours:.1f}" if fault.status in ['Open', 'In Progress'] else "N/A"
-        )
+        pending_hours = f"{fault.total_pending_hours:.1f}"
+        resolved_at = fault.local_resolved_at if fault.resolved_at else "N/A"
+        closed_at = fault.local_closed_at if fault.closed_at else "N/A"
 
         row = f"""
-        <tr class="fault-row" data-fault-id="{fault.id}">
-            <td>{fault.ticket_number}</td>
-            <td>{fault.customer.company if fault.customer else 'N/A'}</td>
-            <td>{fault.customer.circuit_id if fault.customer else 'N/A'}</td>
-            <td>{fault.description}</td>
-            <td class="{fault.status.lower()}">
-                <select class="status-select" data-fault-id="{fault.id}">
-                    <option value="Open" {"selected" if fault.status == 'Open' else ""}>Open</option>
-                    <option value="In Progress" {"selected" if fault.status == 'In Progress' else ""}>In Progress</option>
-                    <option value="Resolved" {"selected" if fault.status == 'Resolved' else ""}>Resolved</option>
-                    <option value="Closed" {"selected" if fault.status == 'Closed' else ""}>Closed</option>
-                </select>
-            </td>
-            <td><span class="badge {fault.dynamic_severity.lower()}">{fault.dynamic_severity}</span></td>
-            <td>{fault.local_created_at}</td>
-            <td>{pending_hours}</td>
-            <td>
-                <button class="action-btn edit" data-fault-id="{fault.id}">Edit</button>
-                <button class="action-btn delete" data-fault-id="{fault.id}">Delete</button>
-            </td>
-        </tr>
-        """
+<tr class="fault-row" data-fault-id="{fault.id}">
+    <td>{fault.ticket_number}</td>
+    <td>{fault.customer.company if fault.customer else 'N/A'}</td>
+    <td>{fault.customer.circuit_id if fault.customer else 'N/A'}</td>
+    <td>{fault.type}</td>
+    <td>{fault.description}</td>
+    <td>{fault.location}</td>
+    <td>{fault.owner_of_ticket or 'N/A'}</td>
+    <td>{fault.assigned_to_person or 'N/A'}</td>
+    <td>{fault.assigned_to.name if fault.assigned_to else 'Unassigned'}</td>
+"""
+
+        if filter_status == "Resolved":
+            row += f"""
+    <td class="{fault.status.lower()}">
+        <select class="status-select" data-fault-id="{fault.id}">
+            <option value="Open" {"selected" if fault.status == 'Open' else ""}>Open</option>
+            <option value="In Progress" {"selected" if fault.status == 'In Progress' else ""}>In Progress</option>
+            <option value="Resolved" {"selected" if fault.status == 'Resolved' else ""}>Resolved</option>
+            <option value="Closed" {"selected" if fault.status == 'Closed' else ""}>Closed</option>
+        </select>
+    </td>
+    <td>{fault.local_created_at}</td>
+    <td>{resolved_at}</td>
+    <td>{pending_hours}</td>
+    <td>
+        <button class="action-btn edit" data-fault-id="{fault.id}">Edit</button>
+        <button class="action-btn delete" data-fault-id="{fault.id}">Delete</button>
+    </td>
+"""
+        elif filter_status == "Closed":
+            row += f"""
+    <td><span class="badge {fault.status.lower()}">{fault.status}</span></td>
+    <td>{fault.local_created_at}</td>
+    <td>{closed_at}</td>
+    <td>{pending_hours}</td>
+    <td>
+        <button class="action-btn edit" data-fault-id="{fault.id}">Edit</button>
+        <button class="action-btn delete" data-fault-id="{fault.id}">Delete</button>
+    </td>
+"""
+        else:
+            row += f"""
+    <td class="{fault.status.lower()}">
+        <select class="status-select" data-fault-id="{fault.id}">
+            <option value="Open" {"selected" if fault.status == 'Open' else ""}>Open</option>
+            <option value="In Progress" {"selected" if fault.status == 'In Progress' else ""}>In Progress</option>
+            <option value="Resolved" {"selected" if fault.status == 'Resolved' else ""}>Resolved</option>
+            <option value="Closed" {"selected" if fault.status == 'Closed' else ""}>Closed</option>
+        </select>
+    </td>
+    <td><span class="badge {fault.dynamic_severity.lower()}">{fault.dynamic_severity}</span></td>
+    <td>{fault.local_created_at}</td>
+    <td>{f"{fault.age_hours:.1f}"}</td>
+    <td>
+        <button class="action-btn edit" data-fault-id="{fault.id}">Edit</button>
+        <button class="action-btn delete" data-fault-id="{fault.id}">Delete</button>
+    </td>
+"""
+
+        row += "</tr>"
         table_rows += row
 
     return jsonify({'table': table_rows})
-
 
 @bp.route('/update_fault_status/<int:fault_id>', methods=['POST'])
 @login_required
 def update_fault_status(fault_id):
     fault = Fault.query.get_or_404(fault_id)
     new_status = request.json.get('status')
+
     fault.status = new_status
+    now_utc = datetime.now(timezone.utc)
+
+    # Set resolved_at only when status moves to Resolved (even if previously cleared)
+    if new_status == "Resolved":
+        fault.resolved_at = now_utc
+        fault.closed_at = None  # Clear closed_at if reverting from Closed
+
+    # Set closed_at only when status moves to Closed
+    elif new_status == "Closed":
+        fault.closed_at = now_utc
+
+    # If reverting to Open or In Progress, clear resolved_at and closed_at
+    elif new_status in ["Open", "In Progress"]:
+        fault.resolved_at = None
+        fault.closed_at = None
+
     db.session.commit()
     return jsonify({'message': f'Fault {fault.id} status updated to {new_status}.'})
+
 
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -162,6 +225,7 @@ def login():
 
         flash('Invalid username or password', 'danger')
     return render_template('login.html')
+
 
 @bp.route('/logout')
 @login_required
@@ -331,6 +395,8 @@ def get_fault_details(fault_id):
         'status': fault.status,
         'severity': fault.dynamic_severity,
         'created_at': fault.local_created_at,
+        'owner_of_ticket': fault.owner_of_ticket,
+        'assigned_to_person': fault.assigned_to_person,
         'customer': {
             'company': customer.company if customer else 'N/A',
             'circuit_id': customer.circuit_id if customer else 'N/A',
@@ -412,15 +478,21 @@ def delete_fault(fault_id):
     return jsonify({"message": "Fault deleted successfully"})
 
 
-@bp.route('/edit_fault/<int:fault_id>', methods=['POST'])
+@bp.route('/edit_fault/<int:id>', methods=['POST'])
 @login_required
-def edit_fault(fault_id):
-    fault = Fault.query.get_or_404(fault_id)
+def edit_fault(id):
+    if current_user.role != 'admin':
+        return jsonify({'message': 'Unauthorized'}), 403
+
+    fault = Fault.query.get_or_404(id)
     data = request.get_json()
 
     fault.type = data.get('type', fault.type)
     fault.description = data.get('description', fault.description)
     fault.location = data.get('location', fault.location)
+    fault.owner_of_ticket = data.get('owner_of_ticket', fault.owner_of_ticket)
+    fault.assigned_to_person = data.get('assigned_to_person', fault.assigned_to_person)
 
     db.session.commit()
-    return jsonify({"message": "Fault updated successfully"})
+
+    return jsonify({'message': 'Fault updated successfully.'})

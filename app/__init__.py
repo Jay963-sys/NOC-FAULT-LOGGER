@@ -8,21 +8,20 @@ from config import Config
 db = SQLAlchemy()
 login_manager = LoginManager()
 mail = Mail()
-migrate = Migrate()  # 👈 Add Migrate
+migrate = Migrate()
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
     db.init_app(app)
-    migrate.init_app(app, db)  # 👈 Initialize Migrate
-
+    migrate.init_app(app, db)
     login_manager.init_app(app)
     login_manager.login_view = 'main.login'
-
     mail.init_app(app)
 
-    from .routes import init_routes
-    init_routes(app)
+    # Import blueprint after extensions are initialized
+    from .routes import bp
+    app.register_blueprint(bp)
 
     return app

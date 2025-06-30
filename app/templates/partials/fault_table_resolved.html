@@ -1,36 +1,36 @@
 <table class="table table-hover">
   <thead>
     <tr>
-      <th>ID</th>
+      <th>Ticket Number</th>
       <th>Description</th>
       <th>Department (Resolved By)</th>
       <th>Severity</th>
       <th>Reported At</th>
       <th>Resolved At</th>
+      <th>Total Pending (hrs)</th>
       <th>Status</th>
     </tr>
   </thead>
   <tbody>
     {% for fault in resolved_faults %}
     <tr>
-      <td>{{ fault.id }}</td>
+      <td>{{ fault.ticket_number }}</td>
       <td>
         {{ fault.type }}
         <a
-          href="{{ url_for('main.fault_detail', fault_id=fault.id) }}"
+          href="{{ url_for('main.get_fault_details', fault_id=fault.id) }}"
           class="btn btn-sm btn-primary"
-          >View Details</a
         >
+          View Details
+        </a>
       </td>
       <td>
         {{ fault.assigned_to.name if fault.assigned_to else "Unassigned" }}
       </td>
       <td>{{ fault.dynamic_severity }}</td>
-      <td>{{ fault.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-      <td>
-        {% if fault.resolved_at %} {{ fault.resolved_at.strftime('%Y-%m-%d
-        %H:%M') }} {% else %} N/A {% endif %}
-      </td>
+      <td>{{ fault.local_created_at }}</td>
+      <td>{{ fault.local_resolved_at }}</td>
+      <td>{{ "%.1f" | format(fault.total_pending_hours) }}</td>
       <td>
         <span class="badge bg-success">{{ fault.status }}</span>
       </td>

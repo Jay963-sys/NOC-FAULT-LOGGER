@@ -395,3 +395,23 @@ canvas {
 .action-btn.delete:hover {
   background-color: #c0392b;
 }
+
+td.resolved-at {
+  color: green;
+  font-weight: bold;
+}
+
+td.closed-at {
+  color: darkred;
+  font-weight: bold;
+}
+
+.badge.resolved {
+  background-color: #198754; /* Bootstrap green */
+  color: white;
+}
+
+.badge.closed {
+  background-color: #6c757d; /* Bootstrap gray */
+  color: white;
+}
