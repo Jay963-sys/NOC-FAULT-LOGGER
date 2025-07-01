@@ -83,14 +83,14 @@ def update_dashboard_table():
     search_query = request.args.get('search', '').strip()
     month = request.args.get('month')
     year = request.args.get('year')
+    severity = request.args.get('severity', '').strip()
+    department = request.args.get('department', '').strip()
 
     faults_query = Fault.query.outerjoin(Customer)
 
-    # Filter by status explicitly on Fault
     if filter_status != 'all':
         faults_query = faults_query.filter(Fault.status == filter_status)
 
-    # Search functionality
     if search_query:
         faults_query = faults_query.filter(
             (Customer.company.ilike(f"%{search_query}%")) |
@@ -99,15 +99,25 @@ def update_dashboard_table():
             (Fault.ticket_number.ilike(f"%{search_query}%"))
         )
 
-    # Filter by Month
     if month and month.isdigit():
         faults_query = faults_query.filter(db.extract('month', Fault.created_at) == int(month))
 
-    # Filter by Year
     if year and year.isdigit():
         faults_query = faults_query.filter(db.extract('year', Fault.created_at) == int(year))
 
+    if department:
+        faults_query = faults_query.filter(Fault.assigned_to.has(name=department))
+
     faults = faults_query.all()
+
+    # Apply severity filtering AFTER fetching (if dynamic_severity is a property)
+    if severity:
+        faults = [f for f in faults if f.dynamic_severity == severity]
+
+        # If status filter is "all", only show active faults (Open/In Progress)
+        if filter_status == "all":
+            faults = [f for f in faults if f.status in ["Open", "In Progress"]]
+
     table_rows = ""
 
     for fault in faults:
@@ -167,7 +177,16 @@ def update_dashboard_table():
             <option value="Closed" {"selected" if fault.status == 'Closed' else ""}>Closed</option>
         </select>
     </td>
-    <td><span class="badge {fault.dynamic_severity.lower()}">{fault.dynamic_severity}</span></td>
+"""
+
+            if fault.status == "Closed":
+                row += f"""<td><span class="badge grey">Closed</span></td>"""
+            elif fault.status == "Resolved":
+                row += f"""<td><span class="badge green">Resolved</span></td>"""
+            else:
+                row += f"""<td><span class="badge {fault.dynamic_severity.lower()}">{fault.dynamic_severity}</span></td>"""
+
+            row += f"""
     <td>{fault.local_created_at}</td>
     <td>{f"{fault.age_hours:.1f}"}</td>
     <td>
@@ -179,7 +198,11 @@ def update_dashboard_table():
         row += "</tr>"
         table_rows += row
 
-    return jsonify({'table': table_rows})
+    high_severity_live_count = sum(
+        1 for f in faults if f.dynamic_severity == 'High' and f.status in ["Open", "In Progress"]
+    )
+
+    return jsonify({'table': table_rows, 'high_severity_count': high_severity_live_count})
 
 @bp.route('/update_fault_status/<int:fault_id>', methods=['POST'])
 @login_required
@@ -244,11 +267,25 @@ def dashboard():
     lagos_tz = ZoneInfo('Africa/Lagos')
     current_time = datetime.now(lagos_tz)
 
+    # Count only pending Open faults
     pending_open = sum(1 for f in faults if f.status == 'Open')
     pending_progress = sum(1 for f in faults if f.status == 'In Progress')
     resolved_count = sum(1 for f in faults if f.status == 'Resolved')
+    high_severity_count = sum(1 for f in faults if f.dynamic_severity == 'High')
 
-    dept_fault_counts = Counter(f.assigned_to.name if f.assigned_to else "Unassigned" for f in faults)
+    # Count only High Severity faults that are NOT Closed or Resolved
+    high_severity_count = sum(
+        1 for f in faults 
+        if f.dynamic_severity == 'High' and f.status not in ['Resolved', 'Closed']
+    )
+
+    # Count department only for pending faults (not Resolved/Closed)
+    dept_fault_counts = Counter(
+        f.assigned_to.name if f.assigned_to else "Unassigned" 
+        for f in faults 
+        if f.status not in ['Resolved', 'Closed']
+    )
+
     date_counts = Counter(f.local_created_at.split(' ')[0] for f in faults)
     severity_counter = Counter(f.dynamic_severity for f in faults)
 
@@ -274,6 +311,8 @@ def dashboard():
         pending_open=pending_open,
         pending_progress=pending_progress,
         resolved_count=resolved_count,
+        high_severity_count=high_severity_count,
+        dept_fault_counts=dept_fault_counts,
         pending_faults=[f for f in faults if f.status == 'Open'],
         progress_faults=[f for f in faults if f.status == 'In Progress'],
         resolved_faults=[f for f in faults if f.status == 'Resolved'],

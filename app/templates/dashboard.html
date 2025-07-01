@@ -14,9 +14,9 @@
       <h1>NOC Fault Logger - Admin Dashboard</h1>
     </header>
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="page-header">
       <h2>Admin Dashboard</h2>
-      <div>
+      <div class="header-actions">
         <a href="{{ url_for('main.log_fault') }}" class="btn btn-primary"
           >Log New Fault</a
         >
@@ -26,46 +26,41 @@
         <a href="{{ url_for('main.departments') }}" class="btn btn-secondary"
           >Manage Departments</a
         >
+        <button id="viewStatsBtn" class="btn btn-info">
+          View Stats Overview
+        </button>
       </div>
     </div>
 
-    <div class="row mb-3">
-      <div class="col-md-4 d-flex">
+    <div class="filters-row">
+      <div class="filter-group">
         <input
           type="text"
           id="searchInput"
-          class="form-control me-2"
+          class="form-control"
           placeholder="Search by Name, Circuit ID or Customer ID"
         />
         <button id="searchBtn" class="btn btn-primary">Search</button>
       </div>
-      <div class="col-md-2">
+      <div class="filter-group">
         <select id="monthFilter" class="form-select">
           <option value="">All Months</option>
-          <option value="1">January</option>
-          <option value="2">February</option>
-          <option value="3">March</option>
-          <option value="4">April</option>
-          <option value="5">May</option>
-          <option value="6">June</option>
-          <option value="7">July</option>
-          <option value="8">August</option>
-          <option value="9">September</option>
-          <option value="10">October</option>
-          <option value="11">November</option>
-          <option value="12">December</option>
+          {% for i in range(1, 13) %}
+          <option value="{{ i }}">
+            {{
+            ["January","February","March","April","May","June","July","August","September","October","November","December"][i-1]
+            }}
+          </option>
+          {% endfor %}
         </select>
       </div>
-      <div class="col-md-2">
+      <div class="filter-group">
         <select id="yearFilter" class="form-select">
           <option value="">All Years</option>
           {% for y in range(2023, 2031) %}
           <option value="{{ y }}">{{ y }}</option>
           {% endfor %}
         </select>
-      </div>
-      <div class="col-md-2">
-        <button id="applyFilters" class="btn btn-primary w-100">Apply</button>
       </div>
     </div>
 
@@ -78,51 +73,84 @@
     </div>
 
     <div class="table-container">
+      <div class="table-loader hidden">
+        <div class="spinner"></div>
+      </div>
       <table id="faultsTable">
-        <thead id="tableHeader">
-          <!-- Dynamic table headers inserted by script.js -->
-        </thead>
-        <tbody id="faultsTableBody">
-          <!-- Table body loaded dynamically by script.js -->
-        </tbody>
+        <thead id="tableHeader"></thead>
+        <tbody id="faultsTableBody"></tbody>
       </table>
     </div>
 
-    <div id="drawer" class="drawer">
+    <!-- STATS Drawer (Left) -->
+    <div id="statsDrawer" class="stats-drawer">
       <div class="drawer-header">
-        <h2>Customer Details & History</h2>
-        <button id="closeDrawer">&times;</button>
+        <h2>Stats Overview</h2>
+        <button id="closeStatsDrawer">&times;</button>
       </div>
       <div class="drawer-content">
-        <div class="drawer-tabs">
-          <button class="drawer-tab active" data-tab="details">
-            Customer Details
-          </button>
-          <button class="drawer-tab" data-tab="history">Fault History</button>
+        <div class="stats-grid">
+          <div class="filter-card" data-status="Open">
+            <h4>Total Open</h4>
+            <p>{{ pending_open }}</p>
+          </div>
+          <div class="filter-card" data-status="In Progress">
+            <h4>In Progress</h4>
+            <p>{{ pending_progress }}</p>
+          </div>
+          <div class="filter-card" data-status="Resolved">
+            <h4>Resolved</h4>
+            <p>{{ resolved_count }}</p>
+          </div>
+          <div class="filter-card" data-severity="High">
+            <h4>High Severity</h4>
+            <p>{{ high_severity_count }}</p>
+          </div>
         </div>
-        <div id="detailsTab" class="tab-content active">
-          <p><strong>Company:</strong> <span id="customerCompany"></span></p>
-          <p><strong>IP Address:</strong> <span id="customerIP"></span></p>
-          <p><strong>POP Site:</strong> <span id="customerPOP"></span></p>
-          <p><strong>Circuit ID:</strong> <span id="customerCircuit"></span></p>
-          <p><strong>Email:</strong> <span id="customerEmail"></span></p>
-          <p><strong>Switch Info:</strong> <span id="customerSwitch"></span></p>
-        </div>
-        <div id="historyTab" class="tab-content">
-          <table>
-            <thead>
-              <tr>
-                <th>Fault ID</th>
-                <th>Issue</th>
-                <th>Status</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody id="faultHistoryBody"></tbody>
-          </table>
-        </div>
+
+        <h3>Cases by Department</h3>
+        <ul class="dept-list">
+          {% for dept, count in dept_fault_counts.items() %}
+          <li>
+            <button class="dept-filter dept-badge" data-department="{{ dept }}">
+              {{ dept }} - {{ count }} Fault(s)
+            </button>
+          </li>
+          {% endfor %}
+        </ul>
       </div>
     </div>
+    <!-- END STATS Drawer -->
+
+    <!-- DETAILS Drawer (Right) -->
+    <div id="detailsDrawer" class="details-drawer">
+      <div class="drawer-header">
+        <h2>Customer Details</h2>
+        <button id="closeDetailsDrawer">&times;</button>
+      </div>
+      <div class="drawer-content">
+        <p><strong>Company:</strong> <span id="customerCompany"></span></p>
+        <p><strong>IP Address:</strong> <span id="customerIP"></span></p>
+        <p><strong>POP Site:</strong> <span id="customerPOP"></span></p>
+        <p><strong>Circuit ID:</strong> <span id="customerCircuit"></span></p>
+        <p><strong>Email:</strong> <span id="customerEmail"></span></p>
+        <p><strong>Switch Info:</strong> <span id="customerSwitch"></span></p>
+
+        <h3>Fault History</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Issue</th>
+              <th>Status</th>
+              <th>Logged Time</th>
+            </tr>
+          </thead>
+          <tbody id="faultHistoryBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <!-- END DETAILS Drawer -->
 
     <!-- Edit Modal -->
     <div id="editModal" class="modal">
@@ -145,7 +173,9 @@
         </form>
       </div>
     </div>
+    <!-- END Edit Modal -->
 
+    <!-- Charts -->
     <div class="chart-container">
       <canvas id="deptChart"></canvas>
     </div>

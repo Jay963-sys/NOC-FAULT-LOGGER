@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", () => {
   setupEventListeners();
   initCharts();
   setInterval(loadTable, 180000); // Refresh every 3 minutes
@@ -15,19 +15,14 @@ function setupEventListeners() {
         .querySelectorAll(".tab")
         .forEach((t) => t.classList.remove("active"));
       tab.classList.add("active");
-      console.log("Tab clicked:", tab.dataset.filter); // Optional for debugging
+      clearSeverityFilter();
+      clearDepartmentFilter();
       loadTable();
     });
   });
 
   const searchInput = document.getElementById("searchInput");
-
-  // Live search as you type
-  searchInput.addEventListener("input", () => {
-    loadTable();
-  });
-
-  // Search on Enter key
+  searchInput.addEventListener("input", loadTable);
   searchInput.addEventListener("keypress", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -39,23 +34,17 @@ function setupEventListeners() {
   document.getElementById("monthFilter").addEventListener("change", loadTable);
   document.getElementById("yearFilter").addEventListener("change", loadTable);
 
-  document.getElementById("closeDrawer").addEventListener("click", () => {
-    document.getElementById("drawer").classList.remove("open");
+  document.getElementById("viewStatsBtn").addEventListener("click", () => {
+    document.getElementById("statsDrawer").classList.add("open");
   });
-
-  document.querySelectorAll(".drawer-tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      document
-        .querySelectorAll(".drawer-tab")
-        .forEach((t) => t.classList.remove("active"));
-      tab.classList.add("active");
-      document
-        .querySelectorAll(".tab-content")
-        .forEach((c) => c.classList.remove("active"));
-      document.getElementById(tab.dataset.tab + "Tab").classList.add("active");
+  document.getElementById("closeStatsDrawer").addEventListener("click", () => {
+    document.getElementById("statsDrawer").classList.remove("open");
+  });
+  document
+    .getElementById("closeDetailsDrawer")
+    .addEventListener("click", () => {
+      document.getElementById("detailsDrawer").classList.remove("open");
     });
-  });
-
   document.getElementById("closeEditModal").addEventListener("click", () => {
     document.getElementById("editModal").classList.remove("open");
   });
@@ -63,6 +52,50 @@ function setupEventListeners() {
   document
     .getElementById("editFaultForm")
     .addEventListener("submit", handleEditSubmit);
+
+  document.querySelectorAll(".filter-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const status = card.dataset.status;
+      const severity = card.dataset.severity;
+
+      if (status) {
+        document.querySelectorAll(".tab").forEach((t) => {
+          t.classList.toggle("active", t.dataset.filter === status);
+        });
+        clearSeverityFilter();
+        clearDepartmentFilter();
+        loadTable();
+      }
+
+      if (severity) {
+        clearDepartmentFilter();
+        setSeverityFilter(severity);
+        document
+          .querySelectorAll(".tab")
+          .forEach((t) => t.classList.remove("active"));
+        document
+          .querySelector(".tab[data-filter='all']")
+          .classList.add("active");
+        loadTable();
+      }
+
+      document.getElementById("statsDrawer").classList.remove("open");
+    });
+  });
+
+  document.querySelectorAll(".dept-filter").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      clearSeverityFilter();
+      setDepartmentFilter(btn.dataset.department);
+      document
+        .querySelectorAll(".tab")
+        .forEach((t) => t.classList.remove("active"));
+      document.querySelector(".tab[data-filter='all']").classList.add("active");
+      loadTable();
+      document.getElementById("statsDrawer").classList.remove("open");
+    });
+  });
 }
 
 function handleClicks(e) {
@@ -73,7 +106,7 @@ function handleClicks(e) {
     !e.target.classList.contains("status-select") &&
     !e.target.closest(".action-btn")
   ) {
-    openDrawerWithDetails(row.dataset.faultId);
+    openDetailsDrawer(row.dataset.faultId);
   }
 
   if (e.target.classList.contains("delete")) {
@@ -112,6 +145,7 @@ function handleChange(e) {
   if (e.target.classList.contains("status-select")) {
     const faultId = e.target.dataset.faultId;
     const newStatus = e.target.value;
+
     fetch(`/update_fault_status/${faultId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -121,12 +155,14 @@ function handleChange(e) {
       .then((data) => {
         showToast(data.message);
         loadTable();
-      });
+      })
+      .catch(() => alert("Error updating status"));
   }
 }
 
 function handleEditSubmit(e) {
   e.preventDefault();
+
   const faultId = document.getElementById("editFaultId").value;
   const updatedData = {
     type: document.getElementById("editType").value,
@@ -151,11 +187,15 @@ function handleEditSubmit(e) {
 }
 
 function loadTable() {
+  showLoader();
+
   const params = new URLSearchParams({
     filter: getActiveFilter(),
     search: document.getElementById("searchInput").value.trim(),
     month: document.getElementById("monthFilter").value,
     year: document.getElementById("yearFilter").value,
+    severity: getSeverityFilter(),
+    department: getDepartmentFilter(),
   });
 
   fetch(`/update_dashboard_table?${params.toString()}`)
@@ -163,12 +203,21 @@ function loadTable() {
     .then((data) => {
       injectTableHeader();
       document.querySelector("#faultsTable tbody").innerHTML = data.table;
+
+      const countEl = document.querySelector(
+        ".filter-card[data-severity='High'] p"
+      );
+      if (countEl && data.high_severity_count !== undefined) {
+        countEl.textContent = data.high_severity_count;
+      }
     })
-    .catch((err) => console.error("Error loading table:", err));
+    .catch(() => alert("Error loading table"))
+    .finally(hideLoader);
 }
 
 function injectTableHeader() {
   const filter = getActiveFilter();
+
   let headerHTML = `
     <tr>
       <th>Ticket Number</th>
@@ -195,12 +244,7 @@ function injectTableHeader() {
   document.getElementById("tableHeader").innerHTML = headerHTML;
 }
 
-function getActiveFilter() {
-  const activeTab = document.querySelector(".tab.active");
-  return activeTab ? activeTab.dataset.filter : "all";
-}
-
-function openDrawerWithDetails(faultId) {
+function openDetailsDrawer(faultId) {
   fetch(`/get_fault_details/${faultId}`)
     .then((res) => {
       if (!res.ok) throw new Error("No customer details found");
@@ -223,17 +267,17 @@ function openDrawerWithDetails(faultId) {
           : data.history
               .map(
                 (h) => `
-            <tr>
-              <td>${h.id}</td>
-              <td>${h.issue}</td>
-              <td>${h.status}</td>
-              <td>${h.logged_time}</td>
-            </tr>
+          <tr>
+            <td>${h.id}</td>
+            <td>${h.issue}</td>
+            <td>${h.status}</td>
+            <td>${h.logged_time}</td>
+          </tr>
         `
               )
               .join("");
 
-      document.getElementById("drawer").classList.add("open");
+      document.getElementById("detailsDrawer").classList.add("open");
     })
     .catch((err) => alert(err.message));
 }
@@ -246,6 +290,43 @@ function showToast(message) {
   setTimeout(() => toast.remove(), 3000);
 }
 
+function showLoader() {
+  document.querySelector(".table-loader").classList.remove("hidden");
+}
+
+function hideLoader() {
+  document.querySelector(".table-loader").classList.add("hidden");
+}
+
+function getActiveFilter() {
+  const activeTab = document.querySelector(".tab.active");
+  return activeTab ? activeTab.dataset.filter : "all";
+}
+
+function getSeverityFilter() {
+  return sessionStorage.getItem("severityFilter") || "";
+}
+
+function setSeverityFilter(value) {
+  sessionStorage.setItem("severityFilter", value);
+}
+
+function clearSeverityFilter() {
+  sessionStorage.removeItem("severityFilter");
+}
+
+function getDepartmentFilter() {
+  return sessionStorage.getItem("departmentFilter") || "";
+}
+
+function setDepartmentFilter(value) {
+  sessionStorage.setItem("departmentFilter", value);
+}
+
+function clearDepartmentFilter() {
+  sessionStorage.removeItem("departmentFilter");
+}
+
 function initCharts() {
   new Chart(document.getElementById("deptChart"), {
     type: "bar",
@@ -255,9 +336,12 @@ function initCharts() {
         {
           label: "Faults by Department",
           data: window.chartData.deptValues,
-          backgroundColor: "steelblue",
+          backgroundColor: "#1E7F34",
         },
       ],
+    },
+    options: {
+      maintainAspectRatio: false,
     },
   });
 
@@ -270,10 +354,13 @@ function initCharts() {
           label: "Faults Over Time",
           data: window.chartData.dateValues,
           backgroundColor: "lightgreen",
-          borderColor: "green",
+          borderColor: "#1E7F34",
           fill: false,
         },
       ],
+    },
+    options: {
+      maintainAspectRatio: false,
     },
   });
 
@@ -285,9 +372,12 @@ function initCharts() {
         {
           label: "Fault Severity",
           data: window.chartData.severityValues,
-          backgroundColor: ["orange", "gold", "red"],
+          backgroundColor: ["#ffc107", "#28a745", "#dc3545"],
         },
       ],
+    },
+    options: {
+      maintainAspectRatio: false,
     },
   });
 }
